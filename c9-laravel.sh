@@ -30,6 +30,7 @@ NVM_VERSION=$(nvm ls-remote | tail -n 1 | awk '{print $1}')
 nvm install $NVM_VERSION
 nvm use $NVM_VERSION
 echo "RUNNING NPM INSTALL, THIS CAN TAKE A WHILE..."
+php artisan preset none
 npm install
 npm cache verify
 npm install
