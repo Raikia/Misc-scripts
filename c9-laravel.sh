@@ -38,10 +38,11 @@ sudo service mysql restart
 sudo apt-get install mysql-server
 sudo mysql_upgrade -u root --force --upgrade-system-tables
 mysql -u root -e 'CREATE DATABASE laravel DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;'
-sed -i 's/DB_DATABASE=homestead/DB_DATABASE=laravel/g' ~/.env
-sed -i 's/DB_USERNAME=homestead/DB_USERNAME=root/g' ~/.env
-sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=/g' ~/.env
+sed -i 's/DB_DATABASE=homestead/DB_DATABASE=laravel/g' ~/workspace/.env
+sed -i 's/DB_USERNAME=homestead/DB_USERNAME=root/g' ~/workspace/.env
+sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=/g' ~/workspace/.env
 sed -i '16s/\/\//Schema::defaultStringLength(191);/g' app/Providers/AppServiceProvider.php
 sed -i '4s/^$/\nuse Illuminate\\Support\\Facades\\Schema;/g' app/Providers/AppServiceProvider.php
 php artisan migrate
 echo "Done!"
+
