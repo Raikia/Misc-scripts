@@ -4,4 +4,9 @@ Honestly, these are just scripts for my own use and consumption.  If someone wan
 c9-laravel - Installation script for laravel on c9, installing and configuring everything automagically.
 
 Quick usage:
-    curl https://raw.githubusercontent.com/Raikia/Misc-scripts/master/c9-laravel.sh | bash
+
+    cd ~
+    wget https://raw.githubusercontent.com/Raikia/Misc-scripts/master/c9-laravel.sh
+    ./c9-laravel.sh
+
+
