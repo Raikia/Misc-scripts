@@ -4,6 +4,7 @@ echo "Setting up Laravel 5.5 development for your c9 environment..."
 echo "   !!! DO NOT RUN THIS ON A PRODUCTION SERVER, DEAR GOD !!!"
 echo "  MAKE SURE you select PHP/Apache container...then press enter"
 read
+. ~/.profile
 echo "INSTALLING NOW!...."
 pushd ~/workspace
 rm hello-world.php
@@ -26,8 +27,8 @@ rmdir laravel
 sudo sed -i 's/DocumentRoot\ \/home\/ubuntu\/workspace/DocumentRoot\ \/home\/ubuntu\/workspace\/public/g' /etc/apache2/sites-enabled/001-cloud9.conf
 sudo service apache2 restart
 NVM_VERSION=$(nvm ls-remote | tail -n 1 | awk '{print $1}')
-nvm install $NVM_VER
-nvm use $NVM_VER
+nvm install $NVM_VERSION
+nvm use $NVM_VERSION
 echo "RUNNING NPM INSTALL, THIS CAN TAKE A WHILE..."
 npm install
 npm cache verify
