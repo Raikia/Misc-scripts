@@ -7,6 +7,6 @@ Quick usage:
 
     cd ~
     wget https://raw.githubusercontent.com/Raikia/Misc-scripts/master/c9-laravel.sh
-    ./c9-laravel.sh
+    bash ./c9-laravel.sh
 
 
