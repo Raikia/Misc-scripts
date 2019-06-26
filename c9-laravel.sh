@@ -1,49 +1,90 @@
 #!/bin/bash
 
-echo "Setting up Laravel 5.5 development for your c9 environment..."
+echo "Setting up Laravel development for your aws c9 environment..."
 echo "   !!! DO NOT RUN THIS ON A PRODUCTION SERVER, DEAR GOD !!!"
-echo "  MAKE SURE you select PHP/Apache container...then press enter"
+echo "Hit enter to continue"
 read
-. ~/.profile
 echo "INSTALLING NOW!...."
-pushd ~/workspace
-rm hello-world.php
-rm php.ini
-rm README.md
-sudo add-apt-repository -y ppa:ondrej/php
-sudo apt-get update
-sudo apt-get install -y php7.2 php7.2-xml php7.2-gd php7.2-mbstring libapache2-mod-php7.2 php7.2-mysql php7.2-zip
-sudo a2dismod php5
-sudo a2enmod php7.2
-sudo composer self-update
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+sudo apt update
+sudo apt -y upgrade
+sudo apt install -y apache2 php libapache2-mod-php php-xml php-gd php-mbstring php-mysql php-zip php-bcmath php-json php-tokenizer
+sudo apt install -y mysql-server 
+sudo service mysql start
+sudo service apache2 start
+sudo apt install -y composer
+sudo a2enmod rewrite
+sudo groupadd web-content
+sudo usermod -G web-content -a ubuntu
+sudo usermod -G web-content -a www-data
 sudo chown -R ubuntu:ubuntu ~/.composer
+cd /var/www/html
 composer create-project --prefer-dist laravel/laravel laravel
-mv laravel/* .
-mv laravel/.env .
-mv laravel/.env.example .
-mv laravel/.gitattributes .
-mv laravel/.gitignore .
-rmdir laravel
-sudo sed -i 's/DocumentRoot\ \/home\/ubuntu\/workspace/DocumentRoot\ \/home\/ubuntu\/workspace\/public/g' /etc/apache2/sites-enabled/001-cloud9.conf
+sudo chown -R ubuntu:web-content /var/www/html
+sudo find /var/www/html -type f -exec chmod u=rw,g=rx,o=rx {} \;
+sudo find /var/www/html -type d -exec chmod u=rwx,g=rx,o=rx {} \;
+chmod -R 777 /var/www/html/laravel/storage
+sudo chmod g+s /var/www/html
+sudo sed -i 's/DocumentRoot\ \/var\/www\/html/DocumentRoot\ \/var\/www\/html\/laravel\/public/g' /etc/apache2/sites-enabled/000-default.conf
 sudo service apache2 restart
 NVM_VERSION=$(nvm ls-remote | tail -n 1 | awk '{print $1}')
 nvm install $NVM_VERSION
 nvm use $NVM_VERSION
 echo "RUNNING NPM INSTALL, THIS CAN TAKE A WHILE..."
-php artisan preset none
+cd /var/www/html/laravel
+composer require guzzlehttp/guzzle 
 npm install
 npm cache verify
 npm install
-sudo service apache2 restart
-sudo service mysql restart
-sudo apt-get install mysql-server
+npm run dev
 sudo mysql_upgrade -u root --force --upgrade-system-tables
 mysql -u root -e 'CREATE DATABASE laravel DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;'
-sed -i 's/DB_DATABASE=homestead/DB_DATABASE=laravel/g' ~/workspace/.env
-sed -i 's/DB_USERNAME=homestead/DB_USERNAME=root/g' ~/workspace/.env
-sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=/g' ~/workspace/.env
-sed -i '16s/\/\//Schema::defaultStringLength(191);/g' app/Providers/AppServiceProvider.php
-sed -i '4s/^$/\nuse Illuminate\\Support\\Facades\\Schema;/g' app/Providers/AppServiceProvider.php
+sudo mysql -u root -e "DROP USER 'root'@'localhost';CREATE USER 'root'@'%' IDENTIFIED BY '';GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;FLUSH PRIVILEGES;"
+mysql -u root -e 'CREATE DATABASE laravel DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;'
+ln -s /var/www/html/laravel ~/environment/laravel
+rm ~/environment/README.md
+sed -i 's/DB_DATABASE=homestead/DB_DATABASE=laravel/g' /var/www/html/laravel/.env
+sed -i 's/DB_USERNAME=homestead/DB_USERNAME=root/g' /var/www/html/laravel/.env
+sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=/g' /var/www/html/laravel/.env
+sed -i '16s/\/\//Schema::defaultStringLength(191);/g' /var/www/html/laravel/app/Providers/AppServiceProvider.php
+sed -i '4s/^$/\nuse Illuminate\\Support\\Facades\\Schema;/g' /var/www/html/laravel/app/Providers/AppServiceProvider.php
+sudo sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
+sudo service apache2 restart
+sudo service mysql restart
 php artisan migrate
-echo "Done!"
+echo "Done installing"
+echo "Configuring AWS to allow apache"
 
+# Get the ID of the instance for the environment, and store it temporarily.
+MY_INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id) 
+           
+# Get the ID of the security group associated with the instance, and store it temporarily.
+MY_SECURITY_GROUP_ID=$(aws ec2 describe-instances --instance-id $MY_INSTANCE_ID --query 'Reservations[].Instances[0].SecurityGroups[0].GroupId' --output text)
+
+# Add an inbound rule to the security group to allow all incoming IPv4-based traffic over port 80.
+aws ec2 authorize-security-group-ingress --group-id $MY_SECURITY_GROUP_ID --protocol tcp --cidr 0.0.0.0/0 --port 80
+
+# Add an inbound rule to the securty group to allow all incoming IPv6-based traffic over port 80.
+aws ec2 authorize-security-group-ingress --group-id $MY_SECURITY_GROUP_ID --ip-permissions IpProtocol=tcp,Ipv6Ranges='[{CidrIpv6=::/0}]',FromPort=80,ToPort=80
+
+# Get the ID of the subnet associated with the instance, and store it temporarily.
+MY_SUBNET_ID=$(aws ec2 describe-instances --instance-id $MY_INSTANCE_ID --query 'Reservations[].Instances[0].SubnetId' --output text)
+
+# Get the ID of the network ACL associated with the subnet, and store it temporarily.
+MY_NETWORK_ACL_ID=$(aws ec2 describe-network-acls --filters Name=association.subnet-id,Values=$MY_SUBNET_ID --query 'NetworkAcls[].Associations[0].NetworkAclId' --output text)
+
+# Add an inbound rule to the network ACL to allow all IPv4-based traffic over port 80. Advanced users: change this suggested rule number as desired.
+aws ec2 create-network-acl-entry --network-acl-id $MY_NETWORK_ACL_ID --ingress --protocol tcp --rule-action allow --rule-number 10000 --cidr-block 0.0.0.0/0 --port-range From=80,To=80
+
+# Add an inbound rule to the network ACL to allow all IPv6-based traffic over port 80. Advanced users: change this suggested rule number as desired.
+aws ec2 create-network-acl-entry --network-acl-id $MY_NETWORK_ACL_ID --ingress --protocol tcp --rule-action allow --rule-number 10100 --ipv6-cidr-block ::/0 --port-range From=80,To=80
+
+
+MY_PUBLIC_IP=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
+echo http://$MY_PUBLIC_IP/ > ~/environment/URL.txt
+echo ""
+echo ""
+echo "Done!  Browse to http://$MY_PUBLIC_IP/"
