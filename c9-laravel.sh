@@ -5,6 +5,12 @@ echo "   !!! DO NOT RUN THIS ON A PRODUCTION SERVER, DEAR GOD !!!"
 echo "Hit enter to continue"
 read
 echo "INSTALLING NOW!...."
+echo "Waiting for cloud apt to stop so we can install things"
+echo "This may take anywhere from 1 to 5 minutes... You can check status by doing 'ps aux | grep apt'"
+while ps aux | grep apt | grep -v grep > /dev/null
+do
+           sleep 1;
+done
 sudo fallocate -l 1G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
@@ -20,9 +26,11 @@ sudo a2enmod rewrite
 sudo groupadd web-content
 sudo usermod -G web-content -a ubuntu
 sudo usermod -G web-content -a www-data
-sudo chown -R ubuntu:ubuntu ~/.composer
+mkdir ~/.composer
+sudo chown -R ubuntu:ubuntu /home/ubuntu/.composer
+sudo chmod -R 777 /home/ubuntu/.composer
 cd /var/www/html
-composer create-project --prefer-dist laravel/laravel laravel
+sudo composer create-project --prefer-dist laravel/laravel laravel
 sudo chown -R ubuntu:web-content /var/www/html
 sudo find /var/www/html -type f -exec chmod u=rw,g=rx,o=rx {} \;
 sudo find /var/www/html -type d -exec chmod u=rwx,g=rx,o=rx {} \;
@@ -35,13 +43,12 @@ nvm install $NVM_VERSION
 nvm use $NVM_VERSION
 echo "RUNNING NPM INSTALL, THIS CAN TAKE A WHILE..."
 cd /var/www/html/laravel
-composer require guzzlehttp/guzzle 
+composer require guzzlehttp/guzzle
 npm install
 npm cache verify
 npm install
 npm run dev
 sudo mysql_upgrade -u root --force --upgrade-system-tables
-mysql -u root -e 'CREATE DATABASE laravel DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;'
 sudo mysql -u root -e "DROP USER 'root'@'localhost';CREATE USER 'root'@'%' IDENTIFIED BY '';GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;FLUSH PRIVILEGES;"
 mysql -u root -e 'CREATE DATABASE laravel DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;'
 ln -s /var/www/html/laravel ~/environment/laravel
@@ -87,4 +94,5 @@ MY_PUBLIC_IP=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
 echo http://$MY_PUBLIC_IP/ > ~/environment/URL.txt
 echo ""
 echo ""
+sudo service apache2 restart
 echo "Done!  Browse to http://$MY_PUBLIC_IP/"
